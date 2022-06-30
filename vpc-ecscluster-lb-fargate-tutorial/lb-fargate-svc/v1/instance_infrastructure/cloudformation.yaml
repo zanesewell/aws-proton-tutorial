@@ -36,7 +36,7 @@ Resources:
       RequiresCompatibilities:
         - FARGATE
       ExecutionRoleArn: '{{environment.outputs.ECSTaskExecutionRole}}'
-      TaskRoleArn: !Ref "AWS::NoValue"
+      TaskRoleArn: !Ref "ECSTaskRole"
       ContainerDefinitions:
         - Name: '{{service_instance.name}}'
           Environment:
@@ -60,6 +60,10 @@ Resources:
     Type: AWS::ECS::Service
     DependsOn: LoadBalancerRule
     Properties:
+      {% if 'VPC-ECSCluster-Env-Test' in environment.name %} 
+      EnableExecuteCommand: true 
+      {% endif %} 
+      ServiceName: '{{service.name}}_{{service_instance.name}}'
       ServiceName: '{{service.name}}_{{service_instance.name}}'
       Cluster: '{{environment.outputs.ClusterName}}'
       LaunchType: FARGATE
@@ -80,6 +84,28 @@ Resources:
         - ContainerName: '{{service_instance.name}}'
           ContainerPort: '{{service_instance.inputs.port}}'
           TargetGroupArn: !Ref 'TargetGroup'
+
+  ECSTaskRole:
+    Type: AWS::IAM::Role
+    Properties:
+        AssumeRolePolicyDocument:
+            Statement:
+            - Effect: Allow
+              Principal:
+                 Service: [ecs-tasks.amazonaws.com]
+              Action: ['sts:AssumeRole']
+        Path: /
+        Policies:
+            - PolicyName: SSMMessagesPolicy
+              PolicyDocument:
+                Statement:
+                    - Effect: Allow
+                      Action:
+                        - 'ssmmessages:CreateControlChannel'
+                        - 'ssmmessages:CreateDataChannel'
+                        - 'ssmmessages:OpenControlChannel'
+                        - 'ssmmessages:OpenDataChannel'
+                      Resource: '*'
 
   # A target group. This is used for keeping track of all the tasks, and
   # what IP addresses / port numbers they have. You can query it yourself,
